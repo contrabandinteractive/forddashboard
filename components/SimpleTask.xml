@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<component name="SimpleTask" extends="Task">
+
+<interface>
+    <field id="index" type="int" value="0"/>
+</interface>
+
+<script type="text/brightscript" >
+<![CDATA[
+
+sub init()
+	m.top.functionName = "executeTask"
+end sub
+
+function fetch(options)
+    timeout = options.timeout
+    if timeout = invalid then timeout = 0
+
+    response = invalid
+    port = CreateObject("roMessagePort")
+    request = CreateObject("roUrlTransfer")
+    request.SetCertificatesFile("common:/certs/ca-bundle.crt")
+    request.InitClientCertificates()
+    request.RetainBodyOnError(true)
+    request.SetMessagePort(port)
+    if options.headers <> invalid
+        for each header in options.headers
+            val = options.headers[header]
+            if val <> invalid then request.addHeader(header, val)
+        end for
+    end if
+    if options.method <> invalid
+        request.setRequest(options.method)
+    end if
+    request.SetUrl(options.url)
+
+    requestSent = invalid
+    if options.body <> invalid
+        requestSent = request.AsyncPostFromString(options.body)
+    else
+        requestSent = request.AsyncGetToString()
+    end if
+    if (requestSent)
+        msg = wait(timeout, port)
+        status = -999
+        body = "(TIMEOUT)"
+        headers = {}
+        if (type(msg) = "roUrlEvent")
+            status = msg.GetResponseCode()
+            headersArray = msg.GetResponseHeadersArray()
+            for each headerObj in headersArray
+                for each headerName in headerObj
+                    val = {
+                        value: headerObj[headerName]
+                        next: invalid
+                    }
+                    current = headers[headerName]
+                    if current <> invalid
+                        prev = current
+                        while current <> invalid
+                            prev = current
+                            current = current.next
+                        end while
+                        prev.next = val
+                    else
+                        headers[headerName] = val
+                    end if
+                end for
+            end for
+            body = msg.GetString()
+            if status < 0 then body = msg.GetFailureReason()
+        end if
+
+        response = {
+            _body: body,
+            status: status,
+            ok: (status >= 200 AND status < 300),
+            headers: headers,
+            text: function()
+                return m._body
+            end function,
+            json: function()
+                return ParseJSON(m._body)
+            end function,
+            xml: function()
+                if m._body = invalid then return invalid
+                xml = CreateObject("roXMLElement") '
+                if NOT xml.Parse(m._body) then return invalid
+                return xml
+            end function
+        }
+    end if
+
+    return response
+end function
+
+function executeTask() as void
+
+      m.refresh_token = ""
+		  m.searchRequest = CreateObject("roUrlTransfer")
+      m.client_id = ""
+      m.client_secret = ""
+
+		  m.searchRequest.SetCertificatesFile("common:/certs/ca-bundle.crt")
+		  m.searchRequest.AddHeader("X-Roku-Reserved-Dev-Id", "")
+      m.searchRequest.AddHeader("Content-Type", "application/json")
+      m.searchRequest.SetRequest("POST")
+		  m.searchRequest.InitClientCertificates()
+
+		  m.thesearchquery = m.global.igurltext
+
+		 	m.searchRequest.SetURL("https://dah2vb2cprod.b2clogin.com/914d88b1-3523-4bf6-9be4-1b96b4f6f919/oauth2/v2.0/token?p=B2C_1A_signup_signin_common")
+		  m.global.searchtype = "user"
+
+      ' Get Previous Refresh Token
+      response = fetch({
+          url: "https://contrabandinteractive.com/ford/get_refresh_token.php?code=" + m.global.previousvehiclecode,
+          timeout: 5000,
+          method: "GET"
+      })
+      if response.ok
+          ?"The response was: " + response.text()
+          m.json = ParseJSON(response.text())
+          m.refresh_token = m.json.refresh_token
+          print "JSON END"
+      else
+        ?"The request failed", response.statusCode, response.text()
+      end if
+
+      print "Initial refresh token"
+      print m.refresh_token
+
+      ' Get New Refresh Token
+      response = fetch({
+          url: "https://dah2vb2cprod.b2clogin.com/914d88b1-3523-4bf6-9be4-1b96b4f6f919/oauth2/v2.0/token?p=B2C_1A_signup_signin_common&grant_type=refresh_token&client_id=" + m.client_id + "&client_secret=" + m.client_secret + "&refresh_token=" + m.refresh_token,
+          timeout: 5000,
+          method: "POST",
+          headers: {
+              "Connection": "keep-alive",
+              "Content-Type": "multipart/form-data",
+              "Accept": "*/*",
+              "Accept-Encoding": "gzip, deflate, br"
+          }
+          body: ""
+      })
+
+      if response.ok
+          ?"The response was: " + response.text()
+          m.json = ParseJSON(response.text())
+          'm.global.masterRefreshToken = m.json[0].translations[0].displayTarget
+          m.global.masterRefreshToken = m.json.refresh_token
+          m.global.masterAccessToken = m.json.access_token
+          print "JSON END"
+          'print "masterAccessToken: " + m.global.masterAccessToken
+      else
+        ?"The request failed", response.statusCode, response.text()
+      end if
+
+      ' Get Vehicle List
+      response = fetch({
+          url: "https://api.mps.ford.com/api/fordconnect/vehicles/v1",
+          timeout: 5000,
+          method: "GET",
+          headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "api-version": "2020-06-01",
+              "Application-Id": "afdc085b-377a-4351-b23e-5e1d35fb3700",
+              "Authorization": "Bearer " + m.global.masterAccessToken
+          }
+          body: ""
+      })
+      if response.ok
+          ?"The response was: " + response.text()
+          m.json = ParseJSON(response.text())
+          'm.global.masterRefreshToken = m.json[0].translations[0].displayTarget
+          m.global.masterVehicleID = m.json.vehicles[0].vehicleId
+          print "JSON END"
+          'print m.global.masterVehicleID
+      else
+        ?"The request failed", response.statusCode, response.text()
+      end if
+
+      ' Get Vehicle Info
+      response = fetch({
+          url: "https://api.mps.ford.com/api/fordconnect/vehicles/v1/" + m.global.masterVehicleID,
+          timeout: 5000,
+          method: "GET",
+          headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+              "api-version": "2020-06-01",
+              "Application-Id": "afdc085b-377a-4351-b23e-5e1d35fb3700",
+              "Authorization": "Bearer " + m.global.masterAccessToken
+          }
+          body: ""
+      })
+      if response.ok
+          ?"The response was: " + response.text()
+          m.json = ParseJSON(response.text())
+
+          m.global.modelName = m.json.vehicle.modelName
+      		m.global.modelYear = m.json.vehicle.modelYear
+      		m.global.mileage = m.json.vehicle.vehicleDetails.mileage
+      		m.global.fuelLevel = m.json.vehicle.vehicleDetails.fuelLevel.value
+      		m.global.latitude = m.json.vehicle.vehicleLocation.latitude
+      		m.global.longitude = m.json.vehicle.vehicleLocation.longitude
+      		m.global.tirePressureWarning = m.json.vehicle.vehicleStatus.tirePressureWarning
+
+          print "JSON END"
+      else
+        ?"The request failed", response.statusCode, response.text()
+      end if
+
+      ' Insert Previous Refresh Token
+      response = fetch({
+          url: "https://contrabandinteractive.com/ford/insert_refresh_token.php?code=" + m.global.previousvehiclecode + "&refresh_token=" + m.refresh_token,
+          timeout: 5000,
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json"
+          }
+          body: ""
+      })
+      if response.ok
+          ?"The response was: " + response.text()
+          m.json = ParseJSON(response.text())
+          print "JSON END"
+      else
+        ?"The request failed", response.statusCode, response.text()
+      end if
+
+
+		  print "Task complete stats"
+		  'print m.searchRequest.GetURL()
+		  m.top.index = m.top.index + 1
+
+
+
+end function
+
+]]>
+</script>
+
+</component>

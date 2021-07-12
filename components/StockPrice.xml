@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<!--********** Copyright 2018 Roku Corp.  All Rights Reserved. **********-->
+
+<component name="StockPrice" extends="Group" >
+
+<script type="text/brightscript" >
+<![CDATA[
+
+  sub init()
+    m.simpleTask = CreateObject("roSGNode", "SimpleTask")
+    'm.top.setFocus(true)
+    print "on label screen"
+    m.myLabel = m.top.findNode("testLabel")
+    'm.myLabel.text = m.global.igfeed.c
+    m.myLabel.text = "Fuel: " + m.global.fuelLevel + " | Tire Pressure: OKAY | Mileage: " + m.global.mileage
+
+    m.stockName = m.top.findNode("stockName")
+    'm.stockName.text = UCase(m.global.igurltext)
+    m.stockName.text = "2019 Ford Edge"
+
+    m.stockStats = m.top.findNode("stockStats")
+    m.stockStats.text = "Location: " + m.global.longitude + "," + m.global.latitude
+
+    m.global.onScreenSaverScreen = "true"
+
+    m.testtimer = m.top.findNode("testTimer")
+    m.testtimer.control = "start"
+    m.textchange = false
+    m.testtimer.ObserveField("fire","changetext")
+    'm.top.setFocus(true)
+  end sub
+
+  sub changetext()
+      'm.simpleTask.control = "RUN"
+      'm.myLabel.text = m.global.igfeed.c
+      'm.stockStats.text = "Open: " + StrI(m.global.igfeed.o)  + " Lo: " + StrI(m.global.igfeed.l) + " Hi: " + StrI(m.global.igfeed.h) + " Prev Close: " + StrI(m.global.igfeed.pc)
+
+  end sub
+
+
+
+]]>
+</script>
+
+<children>
+
+  <Overhang
+    title = "Ford Dashboard"
+    showOptions = "false"
+    optionsAvailable = "false" />
+
+  <SimpleLabel
+    id="stockName"
+    fontUri="pkg:/fonts/ford.otf"
+    fontSize="60"
+    text = ""
+    horizOrigin = "center"
+    vertOrigin = "top"
+    translation="[640,240]" />
+
+    <Poster
+  id="testPoster"
+  uri="pkg:/images/vehicle.png"
+  width="250"
+  height="138"
+  loadDisplayMode="limitSize"
+  translation="[520,100]" />
+
+
+<SimpleLabel
+  id="testLabel"
+  fontUri="pkg:/fonts/ford.otf"
+  fontSize="38"
+  text = ""
+  horizOrigin = "center"
+  vertOrigin = "baseline"
+  translation="[640,400]" />
+
+
+  <SimpleLabel
+    id="stockStats"
+    fontUri="pkg:/fonts/ford.otf"
+    fontSize="38"
+    text = ""
+    horizOrigin = "center"
+    vertOrigin = "baseline"
+    translation="[640,500]" />
+
+    <SimpleLabel
+      id="maintenanceWarnings"
+      color="0x00FF00FF"
+      fontUri="pkg:/fonts/ford.otf"
+      fontSize="38"
+      text = "Next maintenance in 19,628 miles."
+      horizOrigin = "center"
+      vertOrigin = "baseline"
+      translation="[640,580]" />
+
+  <Timer
+    id="testTimer"
+    repeat="true"
+    duration="60"
+  />
+
+</children>
+
+</component>

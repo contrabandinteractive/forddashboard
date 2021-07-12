@@ -1,0 +1,15 @@
+<component name="Index" extends="OverhangPanelSetScene">
+  <script type="text/brightscript" uri="pkg:/components/Index.brs" />
+  <interface></interface>
+  <children>
+    <TaskRegistry id="taskRegistry" />
+    <Label
+      id = "instructLabel"
+      text = "" />
+    <Label
+	id="indexLabel"
+	text=""
+	translation="[550,350]" />
+  </children>
+
+</component>
